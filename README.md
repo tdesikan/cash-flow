@@ -43,8 +43,8 @@ The app displays:
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/KushalBKusram/CashFlow.git
-cd CashFlow
+git clone https://github.com/tdesikan/cash-flow.git
+cd cash-flow
 ```
 
 2. Create a virtual environment:
@@ -55,7 +55,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 3. Install dependencies:
 ```bash
-pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 ```
 
 ## Usage

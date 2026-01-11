@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+import colorsys
+import re
 
 # Page config
 st.set_page_config(
@@ -13,6 +15,28 @@ st.set_page_config(
 # Title
 st.title("CashFlow - Fund    Visualizer")
 st.markdown("Visualize your financial transactions as an interactive Sankey diagram")
+
+# Color palette functions
+def generate_category_colors(n, saturation=0.7, lightness=0.6):
+    """Generate distinct colors using HSL color space"""
+    colors = []
+    for i in range(n):
+        hue = (i * 360 / n) % 360
+        rgb = colorsys.hls_to_rgb(hue / 360, lightness, saturation)
+        colors.append(f"rgba({int(rgb[0]*255)}, {int(rgb[1]*255)}, {int(rgb[2]*255)}, 0.6)")
+    return colors
+
+def get_income_color(alpha=0.6):
+    """Green shades for income"""
+    return f"rgba(34, 197, 94, {alpha})"  # Modern green
+
+def get_savings_color(alpha=0.6):
+    """Blue for savings"""
+    return f"rgba(59, 130, 246, {alpha})"  # Modern blue
+
+def get_income_node_color(alpha=0.8):
+    """Darker green for income nodes"""
+    return f"rgba(22, 163, 74, {alpha})"
 
 # Sidebar - File Upload
 st.sidebar.header("Data Upload")
@@ -195,7 +219,11 @@ for tag, income_amount in income_by_tag.items():
         source.append(income_idx)
         target.append(total_income_idx)
         values.append(income_amount)
-        colors.append("rgba(16, 185, 129, 0.5)")  # Green shades for income flow
+        colors.append(get_income_color(0.5))  # Green shades for income flow
+
+# Generate distinct colors for parent categories
+parent_category_colors = generate_category_colors(len(parent_category_totals), saturation=0.65, lightness=0.55)
+parent_category_color_map = {cat: parent_category_colors[i] for i, cat in enumerate(parent_category_totals.index)}
 
 # Create links: Total Income → Parent Categories
 for parent_cat, parent_amount in parent_category_totals.items():
@@ -204,9 +232,12 @@ for parent_cat, parent_amount in parent_category_totals.items():
         source.append(total_income_idx)
         target.append(parent_idx)
         values.append(abs(parent_amount))
-        colors.append(f"rgba({(hash(str(parent_cat)) % 200) + 50}, {(hash(str(parent_cat)) % 150) + 50}, {(hash(str(parent_cat)) % 200) + 50}, 0.4)")
+        colors.append(parent_category_color_map.get(parent_cat, "rgba(150, 150, 150, 0.4)"))
 
 # Create links: Parent Categories → Categories
+# Use parent category color with slight variation for categories
+category_color_map = {}
+
 for _, row in parent_category_category.iterrows():
     parent_cat = row['parent category']
     category = row['category']
@@ -218,82 +249,137 @@ for _, row in parent_category_category.iterrows():
         source.append(parent_idx)
         target.append(category_idx)
         values.append(abs(amount))
-        colors.append(f"rgba({(hash(str(category)) % 200) + 50}, {(hash(str(category)) % 150) + 50}, {(hash(str(category)) % 200) + 50}, 0.4)")
+        
+        # Use parent category color with slight brightness variation
+        if category not in category_color_map:
+            parent_color = parent_category_color_map.get(parent_cat, "rgba(150, 150, 150, 0.4)")
+            # Extract RGB values and adjust brightness
+            rgb_match = re.search(r'rgba\((\d+),\s*(\d+),\s*(\d+),', parent_color)
+            if rgb_match:
+                r, g, b = int(rgb_match.group(1)), int(rgb_match.group(2)), int(rgb_match.group(3))
+                # Slightly brighter for categories
+                r = min(255, int(r * 1.15))
+                g = min(255, int(g * 1.15))
+                b = min(255, int(b * 1.15))
+                category_color_map[category] = f"rgba({r}, {g}, {b}, 0.5)"
+            else:
+                category_color_map[category] = parent_color
+        colors.append(category_color_map.get(category, "rgba(150, 150, 150, 0.4)"))
 
 # Create link: Total Income → Savings (if positive)
 if savings > 0:
     source.append(total_income_idx)
     target.append(savings_idx)
     values.append(savings)
-    colors.append("rgba(59, 130, 246, 0.4)")  # Blue for savings
+    colors.append(get_savings_color(0.5))  # Blue for savings
 
 # Create node colors
 node_colors = []
-# Colors for income tags (green shades)
+# Colors for income tags (green shades with variation)
+income_greens = [
+    "rgba(34, 197, 94, 0.85)",   # Bright green
+    "rgba(22, 163, 74, 0.85)",   # Medium green
+    "rgba(21, 128, 61, 0.85)",   # Darker green
+    "rgba(20, 83, 45, 0.85)",    # Dark green
+]
 for idx in range(len(income_by_tag)):
-    node_colors.append(f"rgba({16 + (idx * 20) % 50}, {185 - (idx * 10) % 30}, {129 + (idx * 15) % 40}, 0.8)")
+    node_colors.append(income_greens[idx % len(income_greens)])
 
 # Color for Total Income (darker green)
-node_colors.append("rgba(16, 185, 129, 0.8)")
+node_colors.append(get_income_node_color(0.9))
 
 # Color for Savings (if exists)
 if savings > 0:
-    node_colors.append("rgba(59, 130, 246, 0.8)")  # Blue for Savings
+    node_colors.append(get_savings_color(0.85))  # Blue for Savings
 
-# Colors for parent categories
-for idx in range(len(parent_category_totals)):
-    node_colors.append(f"rgba({(idx * 30 + 100) % 255}, {(idx * 40 + 150) % 255}, {(idx * 50 + 200) % 255}, 0.8)")
+# Colors for parent categories (use the same colors as flows but with higher opacity)
+for parent_cat in parent_category_totals.index:
+    parent_color = parent_category_color_map.get(parent_cat, "rgba(150, 150, 150, 0.8)")
+    # Increase opacity for nodes
+    node_colors.append(parent_color.replace("0.6", "0.85"))
 
-# Colors for categories
-for idx in range(len(category_totals)):
-    node_colors.append(f"rgba({(idx * 50) % 255}, {(idx * 100) % 255}, {(idx * 150) % 255}, 0.8)")
+# Colors for categories (use the same colors as flows but with higher opacity)
+for category in category_totals.index:
+    category_color = category_color_map.get(category, "rgba(150, 150, 150, 0.8)")
+    # Increase opacity for nodes
+    node_colors.append(category_color.replace("0.5", "0.85").replace("0.4", "0.85"))
 
-# Create custom hover text
+# Helper function to format currency
+def format_currency(amount):
+    """Format currency with K/M suffixes for readability"""
+    if abs(amount) >= 1000000:
+        return f"${abs(amount)/1000000:.1f}M"
+    elif abs(amount) >= 1000:
+        return f"${abs(amount)/1000:.1f}K"
+    else:
+        return f"${abs(amount):,.0f}"
+
+# Helper function to truncate long labels
+def truncate_label(label, max_length=25):
+    """Truncate label if too long"""
+    if len(label) > max_length:
+        return label[:max_length-3] + "..."
+    return label
+
+# Create custom labels with better formatting (shorter, cleaner)
 node_labels = []
 for i, label in enumerate(labels):
     if label.startswith("Income: "):
         tag_name = label.replace("Income: ", "")
         if tag_name == "Untagged":
             untagged_income = income_df[income_df['tags'].isna() | (income_df['tags'].astype(str) == 'nan')]['amount'].abs().sum()
-            node_labels.append(f"{label} (${untagged_income:,.2f})")
+            node_labels.append(f"{truncate_label(tag_name, 20)}\n{format_currency(untagged_income)}")
         else:
             tag_amount = income_by_tag.get(tag_name, 0)
-            node_labels.append(f"{label} (${tag_amount:,.2f})")
+            node_labels.append(f"{truncate_label(tag_name, 20)}\n{format_currency(tag_amount)}")
     elif label == "Total Income":
-        node_labels.append(f"Total Income (${total_income:,.2f})")
+        node_labels.append(f"Total Income\n{format_currency(total_income)}")
     elif label == "Savings":
-        node_labels.append(f"Savings ({savings/total_income*100:.2f}%)")
+        savings_pct = savings/total_income*100 if total_income > 0 else 0
+        node_labels.append(f"Savings\n{format_currency(savings)}\n{savings_pct:.1f}%")
     elif label in parent_category_indices:
         # This is a parent category
         parent_amount = parent_category_totals.get(label, 0)
-        node_labels.append(f"{label} (${abs(parent_amount):,.2f})")
+        node_labels.append(f"{truncate_label(label, 22)}\n{format_currency(abs(parent_amount))}")
     else:
         # This is a category
         cat_amount = category_totals.get(label, 0)
-        node_labels.append(f"{label} (${abs(cat_amount):,.2f})")
+        node_labels.append(f"{truncate_label(label, 20)}\n{format_currency(abs(cat_amount))}")
 
 fig = go.Figure(data=[go.Sankey(
     node=dict(
-        pad=15,
-        thickness=20,
-        line=dict(color="black", width=0.5),
+        pad=20,
+        thickness=25,
+        line=dict(color="white", width=2),
         label=node_labels,
-        color=node_colors
+        color=node_colors,
+        hovertemplate='%{label}<extra></extra>',
+        labelfont=dict(
+            size=13,
+            color='#1f2937',
+            family='Arial, sans-serif'
+        )
     ),
     link=dict(
         source=source,
         target=target,
         value=values,
-        color=colors
+        color=colors,
+        hovertemplate='%{source.label} → %{target.label}<br>Amount: $%{value:,.2f}<extra></extra>'
     ),
     arrangement='snap',
     orientation='h'
 )])
 
 fig.update_layout(
-    title="Income Flow by Tags to Total Income to Parent Categories to Categories",
-    font=dict(size=12),
-    height=800
+    title=dict(
+        text="Income Flow by Tags to Total Income to Parent Categories to Categories",
+        font=dict(size=16, color='#1f2937')
+    ),
+    font=dict(size=14, color='#1f2937', family='Arial, sans-serif'),
+    height=900,
+    paper_bgcolor='white',
+    plot_bgcolor='white'
 )
 
 st.plotly_chart(fig, use_container_width=True)
