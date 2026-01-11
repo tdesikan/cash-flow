@@ -166,7 +166,8 @@ with col4:
     savings_rate = (savings / total_income * 100) if total_income > 0 else 0
     st.metric("Savings Rate", f"{savings_rate:.2f}%", delta=None)
 
-# Create Sankey diagram with flow: Income by Tags → Total Income → Categories
+# Create Sankey diagram with flow: Income by Tags → Total Income → Total Expenses → Parent Categories → Categories
+# With conditional Deficit (if expenses > income) or Savings (if income > expenses)
 labels = []
 source = []
 target = []
@@ -175,6 +176,7 @@ colors = []
 
 # Group income by tags
 income_by_tag = income_df.groupby('tags')['amount'].sum().abs().sort_values(ascending=False)
+print(income_by_tag)
 
 # Create income tag nodes (source nodes)
 income_tag_indices = {}
@@ -183,19 +185,34 @@ for idx, (tag, amount) in enumerate(income_by_tag.items()):
     labels.append(tag_label)
     income_tag_indices[tag] = idx
 
-# Add Total Income node (intermediate node)
+# Add Total Income node
 total_income_idx = len(labels)
 labels.append("Total Income")
 
-# Add Savings node if positive
+# Add Total Expenses node
+total_expenses_idx = len(labels)
+labels.append("Total Expenses")
+
+# Add Deficit node if expenses exceed income
+deficit_idx = None
+if savings < 0:
+    deficit_idx = len(labels)
+    labels.append("Deficit")
+
+# Add Savings node if income exceeds expenses
 savings_idx = None
 if savings > 0:
     savings_idx = len(labels)
     labels.append("Savings")
 
 # Group expenses by parent category and category
-parent_category_totals = expenses_df.groupby('parent category')['amount'].sum().sort_values(ascending=False)
+# Sort by absolute values to match what we display in the diagram
+parent_category_totals = expenses_df.groupby('parent category')['amount'].sum()
+# Sort by absolute value in descending order, preserving index
+sorted_indices = parent_category_totals.abs().sort_values(ascending=False).index
+parent_category_totals = parent_category_totals.reindex(sorted_indices)
 parent_category_category = expenses_df.groupby(['parent category', 'category'])['amount'].sum().reset_index()
+print(parent_category_totals)
 
 # Add parent category nodes (intermediate nodes)
 parent_category_start_idx = len(labels)
@@ -221,15 +238,36 @@ for tag, income_amount in income_by_tag.items():
         values.append(income_amount)
         colors.append(get_income_color(0.5))  # Green shades for income flow
 
+# Create links: Total Income → Total Expenses
+# If deficit, also create link from Deficit → Total Expenses
+if savings < 0:
+    # Deficit case: Total Income flows to Total Expenses, Deficit also flows to Total Expenses
+    source.append(total_income_idx)
+    target.append(total_expenses_idx)
+    values.append(total_income)
+    colors.append("rgba(251, 146, 60, 0.5)")  # Orange for expenses flow
+    
+    # Deficit link
+    source.append(deficit_idx)
+    target.append(total_expenses_idx)
+    values.append(abs(savings))
+    colors.append("rgba(239, 68, 68, 0.5)")  # Red for deficit flow
+else:
+    # Savings case: Total Income flows to Total Expenses (only expense amount)
+    source.append(total_income_idx)
+    target.append(total_expenses_idx)
+    values.append(total_expenses)
+    colors.append("rgba(251, 146, 60, 0.5)")  # Orange for expenses flow
+
 # Generate distinct colors for parent categories
 parent_category_colors = generate_category_colors(len(parent_category_totals), saturation=0.65, lightness=0.55)
 parent_category_color_map = {cat: parent_category_colors[i] for i, cat in enumerate(parent_category_totals.index)}
 
-# Create links: Total Income → Parent Categories
+# Create links: Total Expenses → Parent Categories
 for parent_cat, parent_amount in parent_category_totals.items():
     if pd.notna(parent_cat) and parent_cat in parent_category_indices:
         parent_idx = parent_category_indices[parent_cat]
-        source.append(total_income_idx)
+        source.append(total_expenses_idx)
         target.append(parent_idx)
         values.append(abs(parent_amount))
         colors.append(parent_category_color_map.get(parent_cat, "rgba(150, 150, 150, 0.4)"))
@@ -266,9 +304,9 @@ for _, row in parent_category_category.iterrows():
                 category_color_map[category] = parent_color
         colors.append(category_color_map.get(category, "rgba(150, 150, 150, 0.4)"))
 
-# Create link: Total Income → Savings (if positive)
+# Create link: Total Expenses → Savings (if positive)
 if savings > 0:
-    source.append(total_income_idx)
+    source.append(total_expenses_idx)
     target.append(savings_idx)
     values.append(savings)
     colors.append(get_savings_color(0.5))  # Blue for savings
@@ -285,10 +323,17 @@ income_greens = [
 for idx in range(len(income_by_tag)):
     node_colors.append(income_greens[idx % len(income_greens)])
 
-# Color for Total Income (darker green)
+# Color for Total Income (green)
 node_colors.append(get_income_node_color(0.9))
 
-# Color for Savings (if exists)
+# Color for Total Expenses (orange/amber)
+node_colors.append("rgba(251, 146, 60, 0.85)")  # Orange for expenses
+
+# Color for Deficit (if exists, red)
+if savings < 0:
+    node_colors.append("rgba(239, 68, 68, 0.85)")  # Red for deficit
+
+# Color for Savings (if exists, blue)
 if savings > 0:
     node_colors.append(get_savings_color(0.85))  # Blue for Savings
 
@@ -334,6 +379,10 @@ for i, label in enumerate(labels):
             node_labels.append(f"{truncate_label(tag_name, 20)}\n{format_currency(tag_amount)}")
     elif label == "Total Income":
         node_labels.append(f"Total Income\n{format_currency(total_income)}")
+    elif label == "Total Expenses":
+        node_labels.append(f"Total Expenses\n{format_currency(total_expenses)}")
+    elif label == "Deficit":
+        node_labels.append(f"Deficit\n{format_currency(abs(savings))}")
     elif label == "Savings":
         savings_pct = savings/total_income*100 if total_income > 0 else 0
         node_labels.append(f"Savings\n{format_currency(savings)}\n{savings_pct:.1f}%")
@@ -368,11 +417,11 @@ fig = go.Figure(data=[go.Sankey(
 
 fig.update_layout(
     title=dict(
-        text="Income Flow by Tags to Total Income to Parent Categories to Categories",
+        text="Income Flow: Tags → Total Income → Total Expenses → Parent Categories → Categories",
         font=dict(size=16, color='#1f2937')
     ),
     font=dict(size=13, color='#1f2937', family='Arial, sans-serif'),
-    height=900,
+    height=700,
     paper_bgcolor='white',
     plot_bgcolor='white'
 )
