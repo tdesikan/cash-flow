@@ -64,7 +64,7 @@ def separate_income_and_expenses(filtered_df):
     # Income: only transactions of type 'income' or in category 'bonuses'
     income_df = filtered_df[
         (filtered_df['type'] == 'income') | 
-        (filtered_df['category'].isin(['bonuses']))
+        (filtered_df['category'].isin(['bonuses', 'Bonuses']))
     ]
     
     # Expenses: all non-income transactions with valid categories
