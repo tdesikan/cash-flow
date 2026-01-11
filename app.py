@@ -353,12 +353,7 @@ fig = go.Figure(data=[go.Sankey(
         line=dict(color="white", width=2),
         label=node_labels,
         color=node_colors,
-        hovertemplate='%{label}<extra></extra>',
-        labelfont=dict(
-            size=13,
-            color='#1f2937',
-            family='Arial, sans-serif'
-        )
+        hovertemplate='%{label}<extra></extra>'
     ),
     link=dict(
         source=source,
@@ -376,13 +371,26 @@ fig.update_layout(
         text="Income Flow by Tags to Total Income to Parent Categories to Categories",
         font=dict(size=16, color='#1f2937')
     ),
-    font=dict(size=14, color='#1f2937', family='Arial, sans-serif'),
+    font=dict(size=13, color='#1f2937', family='Arial, sans-serif'),
     height=900,
     paper_bgcolor='white',
     plot_bgcolor='white'
 )
 
-st.plotly_chart(fig, use_container_width=True)
+# Add custom CSS to remove text-shadow from Sankey node labels
+st.markdown("""
+<style>
+    /* Remove text-shadow from all Plotly Sankey node labels */
+    .js-plotly-plot svg text,
+    .plotly svg text,
+    svg text {
+        text-shadow: none !important;
+        filter: none !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+st.plotly_chart(fig, width='stretch')
 
 # Category drill-down section
 st.markdown("---")
@@ -429,7 +437,7 @@ if selected_category != "None":
             showlegend=True
         )
         
-        st.plotly_chart(fig_pie, use_container_width=True)
+        st.plotly_chart(fig_pie, width='stretch')
         
         # Detailed transaction table
         st.markdown("### Recent Transactions")
@@ -437,7 +445,7 @@ if selected_category != "None":
         transaction_display['date'] = pd.to_datetime(transaction_display['date']).dt.strftime('%Y-%m-%d')
         transaction_display['amount'] = transaction_display['amount'].apply(lambda x: f"${x:,.2f}")
         transaction_display = transaction_display.sort_values('date', ascending=False).head(20)
-        st.dataframe(transaction_display, hide_index=True, use_container_width=True)
+        st.dataframe(transaction_display, hide_index=True, width='stretch')
 
 # Additional stats
 col1, col2, col3 = st.columns(3)
@@ -459,4 +467,4 @@ legend_df = pd.DataFrame({
 })
 legend_df['Amount'] = legend_df['Amount'].apply(lambda x: f"${x:,.2f}")
 legend_df['Percentage'] = legend_df['Percentage'].apply(lambda x: f"{x:.2f}%")
-st.dataframe(legend_df, hide_index=True, use_container_width=True)
+st.dataframe(legend_df, hide_index=True, width='stretch')
