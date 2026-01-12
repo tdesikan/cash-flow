@@ -47,9 +47,9 @@ def render_filters():
     prev_2y = datetime.now().year - 2
     date_range_option = st.sidebar.selectbox(
         "Date Range",
-        ["All Time", "Last Week", "Last Month", "Last 60 Days", 
-         "Last 90 Days", "Last 6 Months", "Last 12 Months", 
-         str(prev_1y), str(prev_2y)],
+        ["Year to date", "Month to date", 
+        "Last 12 Months", "Last 3 Months", "Last 4 Weeks",
+         str(prev_1y), str(prev_2y), "All Time"],
         index=6  # Default to "Last Year"
     )
 

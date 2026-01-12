@@ -20,28 +20,34 @@ def load_data(file):
 def calculate_date_range(date_range_option, df):
     """Calculate start and end dates based on date range option."""
     end_date = datetime.now()
+    prev_1y = datetime.now().year - 1
+    prev_2y = datetime.now().year - 2
     
-    if date_range_option == "Last Week":
-        start_date = end_date - timedelta(days=7)
-    elif date_range_option == "Last Month":
-        start_date = end_date - timedelta(days=30)
-    elif date_range_option == "Last 60 Days":
-        start_date = end_date - timedelta(days=60)
-    elif date_range_option == "Last 90 Days":
-        start_date = end_date - timedelta(days=90)
-    elif date_range_option == "Last 6 Months":
-        start_date = end_date - timedelta(days=180)
+    if date_range_option == "Year to date":
+        start_date = datetime(end_date.year, 1, 1)
+    elif date_range_option == "Month to date":
+        start_date = datetime(end_date.year, end_date.month, 1)
     elif date_range_option == "Last 12 Months":
-        start_date = end_date - timedelta(days=365)
-    elif date_range_option == str(datetime.now().year - 1):
-        start_date = datetime(datetime.now().year - 1, 1, 1)
-        end_date = datetime(datetime.now().year - 1, 12, 31)
-    elif date_range_option == str(datetime.now().year - 2):
-        start_date = datetime(datetime.now().year - 2, 1, 1)
-        end_date = datetime(datetime.now().year - 2, 12, 31)
+        start_date = end_date.replace(day=1)
+        months_back = 12 if end_date.day == 1 else 11
+        for _ in range(months_back):
+            start_date = (start_date - timedelta(days=1)).replace(day=1)
+    elif date_range_option == "Last 3 Months":
+        start_date = end_date.replace(day=1)
+        for _ in range(3):
+            start_date = (start_date - timedelta(days=1)).replace(day=1)
+    elif date_range_option == "Last 4 Weeks":
+        start_date = end_date - timedelta(weeks=4)
+    elif date_range_option == str(prev_1y):
+        start_date = datetime(prev_1y, 1, 1)
+        end_date = datetime(prev_1y, 12, 31)
+    elif date_range_option == str(prev_2y):
+        start_date = datetime(prev_2y, 1, 1)
+        end_date = datetime(prev_2y, 12, 31)
     else:  # All Time
         start_date = df['date'].min()
     
+    print(start_date, end_date)
     return start_date, end_date
 
 
@@ -79,7 +85,6 @@ def separate_income_and_expenses(filtered_df):
         (filtered_df['type'] == 'income') | 
         (filtered_df['category'] == 'Bonuses')
     ]
-    print(income_df[income_df['tags'] == 'SS-Bonus'])
 
     # Expenses: all non-income transactions with valid categories
     expenses_df = filtered_df[

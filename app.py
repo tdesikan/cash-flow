@@ -20,8 +20,7 @@ st.set_page_config(
 )
 
 # Title
-st.title("TD SS CashFlow Visualizer")
-st.markdown("Visualize income & spending as an interactive Sankey diagram")
+st.title("Copilot Money Visualizer")
 
 # File upload
 uploaded_file = render_file_upload()
@@ -68,15 +67,15 @@ render_sankey_css()
 # Display Sankey diagram
 st.plotly_chart(fig, width='stretch')
 
+# Additional stats
+render_additional_stats(filtered_df)
+
+# Top categories
+render_top_categories(metrics['category_totals'], metrics['total_income'])
+
 # Category breakdown
 render_category_breakdown(
     expenses_df, 
     metrics['category_totals'], 
     metrics['total_income']
 )
-
-# Additional stats
-render_additional_stats(filtered_df)
-
-# Top categories
-render_top_categories(metrics['category_totals'], metrics['total_income'])

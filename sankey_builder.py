@@ -273,7 +273,7 @@ class SankeyBuilder:
         
         fig.update_layout(
             title=dict(
-                text="Income Flow: Income By Tags → Total Income → Total Expenses → Parent Categories → Categories",
+                text="Income Flow: Sources → Total Income → Total Expenses → Parent Categories → Categories",
                 font=dict(size=16, color='#1f2937')
             ),
             font=dict(size=13, color='#1f2937', family='Arial, sans-serif'),
