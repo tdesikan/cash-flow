@@ -7,7 +7,7 @@ from data_processing import (
 )
 from sankey_builder import SankeyBuilder
 from ui_components import (
-    render_file_upload, render_date_range_selector, render_metrics,
+    render_file_upload, render_filters, render_metrics,
     render_sankey_css, render_category_breakdown, render_additional_stats,
     render_top_categories
 )
@@ -20,8 +20,8 @@ st.set_page_config(
 )
 
 # Title
-st.title("CashFlow - Fund    Visualizer")
-st.markdown("Visualize your financial transactions as an interactive Sankey diagram")
+st.title("TD SS CashFlow Visualizer")
+st.markdown("Visualize income & spending as an interactive Sankey diagram")
 
 # File upload
 uploaded_file = render_file_upload()
@@ -36,11 +36,11 @@ except Exception as e:
     st.error(f"Error loading CSV file: {e}")
     st.stop()
 
-# Date range selector
-date_range_option = render_date_range_selector()
+# Filters - date range selector
+date_range_option, lumpy_option = render_filters()
 
 # Filter data
-filtered_df = filter_data(df, date_range_option)
+filtered_df = filter_data(df, date_range_option, lumpy_option)
 
 # Separate income and expenses
 income_df, expenses_df = separate_income_and_expenses(filtered_df)

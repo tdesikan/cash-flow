@@ -45,10 +45,18 @@ def calculate_date_range(date_range_option, df):
     return start_date, end_date
 
 
-def filter_data(df, date_range_option):
+def filter_data(df, date_range_option, lumpy_option):
     """Filter data based on date range."""
     filtered_df = df.copy()
     
+    # Always remove some categories from analysis
+    filtered_df = filtered_df[~filtered_df['category'].isin([
+        'Investments & Assets',
+        'Credit Card Reconciliation', 
+        'TD Reimbursed', 
+        'SS Reimbursed'
+    ])]
+
     if date_range_option != "All Time":
         start_date, end_date = calculate_date_range(date_range_option, df)
         filtered_df = filtered_df[
@@ -56,23 +64,29 @@ def filter_data(df, date_range_option):
             (filtered_df['date'] <= end_date)
         ]
     
+    # parent_category Lumpy removed unless we ask for it
+    if not lumpy_option:
+        filtered_df = filtered_df[filtered_df['parent category'] != 'Lumpy']
+    
     return filtered_df
 
 
 def separate_income_and_expenses(filtered_df):
     """Separate transactions into income and expenses dataframes."""
-    # Income: only transactions of type 'income' or in category 'bonuses'
+    # Income: only transactions of type 'income' 
+    # Note: category 'Bonuses' under parent 'Lumpy' is actually income
     income_df = filtered_df[
         (filtered_df['type'] == 'income') | 
-        (filtered_df['category'].isin(['bonuses', 'Bonuses']))
+        (filtered_df['category'] == 'Bonuses')
     ]
-    
+    print(income_df[income_df['tags'] == 'SS-Bonus'])
+
     # Expenses: all non-income transactions with valid categories
     expenses_df = filtered_df[
         (filtered_df['type'] != 'income') & 
+        (filtered_df['category'] != 'Bonuses') &
         (filtered_df['category'].notna()) & 
-        (filtered_df['category'] != '') & 
-        (filtered_df['excluded'] != True)
+        (filtered_df['category'] != '')
     ]
     
     return income_df, expenses_df

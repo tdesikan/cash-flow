@@ -8,8 +8,7 @@ from datetime import datetime
 def render_file_upload():
     """Render file upload section and return uploaded file."""
     st.sidebar.header("Data Upload")
-    uploaded_file = st.sidebar.file_uploader("Upload your transactions CSV", type=['csv'])
-    st.sidebar.caption("Currently works with Copilot Money CSV exports")
+    uploaded_file = st.sidebar.file_uploader("Upload Copilot Money CSV export", type=['csv'])
     
     if uploaded_file is None:
         st.info("Please upload your transaction CSV file (currently supports Copilot Money export format)")
@@ -40,7 +39,7 @@ def render_file_upload():
     return uploaded_file
 
 
-def render_date_range_selector():
+def render_filters():
     """Render date range selector and return selected option."""
     st.sidebar.header("Filters")
     
@@ -53,8 +52,10 @@ def render_date_range_selector():
          str(prev_1y), str(prev_2y)],
         index=6  # Default to "Last Year"
     )
+
+    lumpy_option = st.sidebar.checkbox("Include Bonuses, Taxes, and other Lumpy categories", value=False)
     
-    return date_range_option
+    return date_range_option, lumpy_option
 
 
 def render_metrics(metrics):
