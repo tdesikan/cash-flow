@@ -10,10 +10,16 @@ def load_data(file):
     df = pd.read_csv(file, quotechar='"', skipinitialspace=True)
     df['date'] = pd.to_datetime(df['date'])
     df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
-    # If multiple tags exist, take first one
-    df['tags'] = df['tags'].astype(str).apply(
-        lambda x: x.split(',')[0] if pd.notna(x) and ',' in str(x) else x
-    )
+
+    # Normalize tags: drop "TODO" and keep only the first remaining tag
+    def _normalize_tag(v):
+        if pd.isna(v):
+            return v
+        tags = [t.strip() for t in str(v).split(',')]
+        tags = [t for t in tags if t and t.upper() != "TODO"]
+        return tags[0] if tags else ""
+    df['tags'] = df['tags'].apply(_normalize_tag)
+
     return df
 
 

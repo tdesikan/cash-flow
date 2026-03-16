@@ -19,10 +19,10 @@ def render_file_upload():
         - `date`: Transaction date (YYYY-MM-DD)
         - `name`: Merchant/payee name
         - `amount`: Transaction amount (negative for income/refunds, positive for expenses)
-        - `parent category`: Expense category grouping
-        - `category`: Expense category
+        - `category`: Expense category - only 1 category per transaction
+        - `parent category`: Expense category grouping - every category should have a parent category
         - `excluded`: Category is to be excluded from the analysis
-        - `tags`: Labels associated with a transaction
+        - `tags`: Labels associated with a transaction - can have no tags or multiple tags per transaction
         - `type`: Transaction type (`income`, `regular`, etc.)
         - `account`: Account name
         - `excluded`: Whether to exclude (true/false)
@@ -31,7 +31,7 @@ def render_file_upload():
         ```csv
         date,name,amount,status,category,tags,type,account,excluded
         2026-01-01,Salary,-5000.00,cleared,Salary,0-v-snow,income,Checking,false
-        2026-01-02,Grocery Store,85.50,cleared,Food & Dining,0-v-snow,regular,Credit Card,false
+        2026-01-02,Grocery Store,85.50,cleared,Food & Dining,"0-v-Snow, TODO",regular,Credit Card,false
         ```
         """)
         return None
@@ -50,7 +50,7 @@ def render_filters():
         ["Year to date", "Month to date", 
         "Last 12 Months", "Last 3 Months", "Last 4 Weeks",
          str(prev_1y), str(prev_2y), "All Time"],
-        index=6  # Default to "Last Year"
+        index=5  # Default to "Last Year"
     )
 
     lumpy_option = st.sidebar.checkbox("Include Bonuses, Taxes, and other Lumpy categories", value=False)
@@ -171,3 +171,117 @@ def render_top_categories(category_totals, total_income):
     legend_df['Amount'] = legend_df['Amount'].apply(lambda x: f"${x:,.2f}")
     legend_df['Percentage'] = legend_df['Percentage'].apply(lambda x: f"{x:.2f}%")
     st.dataframe(legend_df, hide_index=True, width='stretch')
+
+
+def render_tags_breakdown(expenses_df):
+    """Render tags breakdown section (0–many tags per transaction)."""
+    st.markdown("---")
+    st.subheader("Tags Breakdown")
+
+    if 'tags' not in expenses_df.columns:
+        st.info("No tags data available in this dataset.")
+        return
+
+    # Prepare exploded dataframe with one row per (transaction, tag)
+    tagged = expenses_df.copy()
+    tagged['tags'] = tagged['tags'].fillna('').astype(str)
+    tagged = tagged[tagged['tags'].str.strip() != '']
+
+    if tagged.empty:
+        st.info("No tags found in the current filtered transactions.")
+        return
+
+    tagged = tagged.assign(tag_list=tagged['tags'].str.split(','))
+    exploded = tagged.explode('tag_list')
+    exploded['tag_list'] = exploded['tag_list'].astype(str).str.strip()
+    exploded = exploded[exploded['tag_list'] != '']
+
+    if exploded.empty:
+        st.info("No tags found in the current filtered transactions.")
+        return
+
+    # Aggregate totals by tag
+    tag_totals = (
+        exploded.groupby('tag_list')['amount']
+        .sum()
+        .sort_values(ascending=False)
+    )
+
+    all_tags = tag_totals.index.tolist()
+
+    selected_tag = st.selectbox(
+        "Select a tag to see detailed breakdown:",
+        ["None"] + all_tags,
+        index=0,
+    )
+
+    if selected_tag == "None":
+        return
+
+    tag_transactions = exploded[exploded['tag_list'] == selected_tag]
+
+    st.markdown(f"### {selected_tag}")
+
+    # Summary metrics for this tag
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        total_spent = tag_transactions['amount'].sum()
+        st.metric("Total Spent", f"${total_spent:,.2f}")
+    with col2:
+        txn_count = tag_transactions.drop_duplicates(
+            subset=['date', 'name', 'amount', 'account']
+        ).shape[0]
+        st.metric("Transactions", txn_count)
+    with col3:
+        avg_transaction = total_spent / txn_count if txn_count > 0 else 0
+        st.metric("Avg Transaction", f"${avg_transaction:,.2f}")
+
+    # Pie chart by category within this tag
+    positive_transactions = tag_transactions[tag_transactions['amount'] > 0]
+    if not positive_transactions.empty and 'category' in positive_transactions.columns:
+        category_totals = (
+            positive_transactions.groupby('category')['amount']
+            .sum()
+            .sort_values(ascending=False)
+            .head(10)
+        )
+
+        if len(category_totals) > 0:
+            fig_pie = go.Figure(
+                data=[
+                    go.Pie(
+                        labels=category_totals.index,
+                        values=category_totals.values,
+                        hole=0.3,
+                        textposition="auto",
+                        textinfo="label+percent",
+                    )
+                ]
+            )
+
+            fig_pie.update_layout(
+                title=f"Top Categories for Tag: {selected_tag}",
+                height=500,
+                showlegend=True,
+            )
+
+            st.plotly_chart(fig_pie, width="stretch")
+
+    # Detailed transaction table (deduplicated per transaction)
+    st.markdown("### Recent Transactions")
+    transaction_display = (
+        tag_transactions.drop_duplicates(
+            subset=['date', 'name', 'amount', 'account']
+        )[['date', 'name', 'category', 'amount', 'account', 'tags']]
+        .copy()
+    )
+    transaction_display['date'] = pd.to_datetime(
+        transaction_display['date']
+    ).dt.strftime('%Y-%m-%d')
+    transaction_display['amount'] = transaction_display['amount'].apply(
+        lambda x: f"${x:,.2f}"
+    )
+    transaction_display = transaction_display.sort_values(
+        'date', ascending=False
+    ).head(50)
+    st.dataframe(transaction_display, hide_index=True, width='stretch')

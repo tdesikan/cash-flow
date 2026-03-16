@@ -9,7 +9,7 @@ from sankey_builder import SankeyBuilder
 from ui_components import (
     render_file_upload, render_filters, render_metrics,
     render_sankey_css, render_category_breakdown, render_additional_stats,
-    render_top_categories
+    render_top_categories, render_tags_breakdown
 )
 
 # Page config
@@ -75,7 +75,10 @@ render_top_categories(metrics['category_totals'], metrics['total_income'])
 
 # Category breakdown
 render_category_breakdown(
-    expenses_df, 
-    metrics['category_totals'], 
+    expenses_df,
+    metrics['category_totals'],
     metrics['total_income']
 )
+
+# Tags breakdown
+render_tags_breakdown(expenses_df)
