@@ -1,5 +1,8 @@
 """Streamlit UI components."""
+import json
+
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
@@ -84,6 +87,97 @@ def render_sankey_css():
         }
     </style>
     """, unsafe_allow_html=True)
+
+
+def render_sankey_chart(fig, parent_node_indices, total_expenses_idx):
+    """Render Sankey via HTML for label tweaks not exposed in Plotly.py (leaf-calibrated x; parents keep Plotly y)."""
+    idx_json = json.dumps(list(parent_node_indices))
+    te = int(total_expenses_idx)
+    # Raw JS only: Plotly injects post_script inside its own <script> block; do not wrap in <script>.
+    post_script = f"""
+    (function () {{
+      var PARENT_IDX = {idx_json};
+      var TOTAL_EXPENSES_IDX = {te};
+      function groupX(g) {{
+        var tr = g.getAttribute('transform') || '';
+        var m = tr.match(/translate\\(\\s*([^,\\s]+)\\s*,\\s*([^)]+)\\)/);
+        return m ? parseFloat(m[1]) : NaN;
+      }}
+      function inferLeafPadAndAnchor(nodes) {{
+        var maxX = -Infinity;
+        for (var a = 0; a < nodes.length; a++) {{
+          var gx = groupX(nodes[a]);
+          if (!isNaN(gx) && gx > maxX) maxX = gx;
+        }}
+        if (!isFinite(maxX)) return null;
+        for (var b = 0; b < nodes.length; b++) {{
+          if (Math.abs(groupX(nodes[b]) - maxX) > 0.5) continue;
+          var rect = nodes[b].querySelector('.node-rect');
+          var lab = nodes[b].querySelector('text.node-label');
+          if (!rect || !lab) continue;
+          var lw = parseFloat(rect.getAttribute('width')) || 0;
+          var ltr = lab.getAttribute('transform') || '';
+          var lm = ltr.match(/translate\\(\\s*([^,\\s]+)\\s*,\\s*([^)]+)\\)/);
+          if (!lm) continue;
+          var lx = parseFloat(lm[1]);
+          var pad = -lx - lw / 2;
+          var anchor = lab.getAttribute('text-anchor');
+          return {{ pad: pad, anchor: anchor }};
+        }}
+        return null;
+      }}
+      function setSankeyLabelAnchors(gd) {{
+        if (!gd || !gd.querySelectorAll) return;
+        var nodes = gd.querySelectorAll('.sankey-node');
+        var ref = inferLeafPadAndAnchor(nodes);
+        var pad = ref ? ref.pad : 4;
+        var leafAnchor = ref && ref.anchor ? ref.anchor : 'end';
+        for (var k = 0; k < PARENT_IDX.length; k++) {{
+          var pi = PARENT_IDX[k];
+          if (pi < 0 || pi >= nodes.length) continue;
+          var pNode = nodes[pi];
+          var pRect = pNode.querySelector('.node-rect');
+          var pw = pRect ? parseFloat(pRect.getAttribute('width')) : 25;
+          var xLeftP = -(pw / 2 + pad);
+          var pTexts = pNode.querySelectorAll('text.node-label');
+          for (var j = 0; j < pTexts.length; j++) {{
+            var ptext = pTexts[j];
+            var ptr = ptext.getAttribute('transform') || '';
+            var pm = ptr.match(/translate\\(\\s*([^,\\s]+)\\s*,\\s*([^)]+)\\)/);
+            var yKeep = pm ? pm[2].trim() : '0';
+            ptext.setAttribute('text-anchor', leafAnchor);
+            ptext.setAttribute('transform', 'translate(' + xLeftP + ',' + yKeep + ')');
+          }}
+        }}
+        if (TOTAL_EXPENSES_IDX >= 0 && TOTAL_EXPENSES_IDX < nodes.length) {{
+          var teNode = nodes[TOTAL_EXPENSES_IDX];
+          var teTexts = teNode.querySelectorAll('text.node-label');
+          var teRect = teNode.querySelector('.node-rect');
+          var rw = teRect ? parseFloat(teRect.getAttribute('width')) : 25;
+          var xLeft = -(rw / 2 + pad);
+          for (var t = 0; t < teTexts.length; t++) {{
+            var tnode = teTexts[t];
+            tnode.setAttribute('text-anchor', leafAnchor);
+            var fs = parseFloat(window.getComputedStyle(tnode).fontSize) || 13;
+            var yTop = fs * 3;
+            tnode.setAttribute('transform', 'translate(' + xLeft + ',' + yTop + ')');
+          }}
+        }}
+      }}
+      var gd = document.getElementById('cashflow-sankey');
+      if (!gd) return;
+      gd.on('plotly_afterplot', function () {{ setSankeyLabelAnchors(gd); }});
+      setTimeout(function () {{ setSankeyLabelAnchors(gd); }}, 0);
+    }})();
+    """
+    html = fig.to_html(
+        full_html=True,
+        include_plotlyjs="cdn",
+        div_id="cashflow-sankey",
+        config={"responsive": True, "displayModeBar": True},
+        post_script=post_script,
+    )
+    components.html(html, height=760, scrolling=False)
 
 
 def render_category_breakdown(expenses_df, category_totals, total_income):

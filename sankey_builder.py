@@ -33,6 +33,16 @@ class SankeyBuilder:
         # Color maps
         self.parent_category_color_map = {}
         self.category_color_map = {}
+    
+    @property
+    def parent_category_node_indices(self):
+        """Indices of parent-category nodes in the Sankey trace (for SVG label tweaks)."""
+        return sorted(self.parent_category_indices.values())
+    
+    @property
+    def total_expenses_node_index(self):
+        """Sankey trace index for the Total Expenses node (set after build())."""
+        return self.total_expenses_idx
         
     def build(self):
         """Build the complete Sankey diagram."""

@@ -8,7 +8,7 @@ from data_processing import (
 from sankey_builder import SankeyBuilder
 from ui_components import (
     render_file_upload, render_filters, render_metrics,
-    render_sankey_css, render_category_breakdown, render_additional_stats,
+    render_sankey_css, render_sankey_chart, render_category_breakdown, render_additional_stats,
     render_top_categories, render_tags_breakdown
 )
 
@@ -64,8 +64,12 @@ fig = sankey_builder.build()
 # Render Sankey CSS
 render_sankey_css()
 
-# Display Sankey diagram
-st.plotly_chart(fig, width='stretch')
+# Display Sankey diagram (HTML embed: parent-category label text-anchor set in browser)
+render_sankey_chart(
+    fig,
+    sankey_builder.parent_category_node_indices,
+    sankey_builder.total_expenses_node_index,
+)
 
 # Additional stats
 render_additional_stats(filtered_df)
